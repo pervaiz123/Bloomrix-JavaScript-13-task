@@ -2,10 +2,7 @@
 const COURSES_URL = new URL("../data/courses.json", import.meta.url);
 const CATEGORIES_URL = new URL("../data/categories.json", import.meta.url);
 
-/**
- * Fetch JSON with timeout, cancellation, HTTP checks,
- * and useful errors for invalid or empty JSON responses.
- */
+
 export async function fetchJson(
   url,
   {
@@ -54,7 +51,7 @@ export async function fetchJson(
       timeoutPromise
     ]);
 
-    // Check whether the HTTP response was successful.
+    
     if (!response.ok) {
       throw new Error(
         `HTTP ${response.status}: ${
@@ -63,7 +60,7 @@ export async function fetchJson(
       );
     }
 
-    // Check response content type.
+    
     const contentType =
       response.headers.get("content-type") ?? "";
 
@@ -74,7 +71,7 @@ export async function fetchJson(
       throw new Error("The server response was not JSON.");
     }
 
-    // Convert JSON response into JavaScript data.
+    
     try {
       return await response.json();
     } catch (error) {
@@ -293,9 +290,7 @@ export async function loadInitialData({ signal } = {}) {
 }
 
 
-/**
- * Fetch fresh course data for searchable requests.
- */
+
 export async function fetchCourses({ signal } = {}) {
 
   const payload = await fetchJson(
@@ -307,10 +302,7 @@ export async function fetchCourses({ signal } = {}) {
 }
 
 
-/**
- * Demonstration of a default export.
- * Named exports are also available above.
- */
+
 const api = {
   fetchJson,
   fetchCourses,

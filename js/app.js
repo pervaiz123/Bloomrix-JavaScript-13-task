@@ -473,6 +473,5 @@ ui.setFilterValues(state.filters);
 loadCatalogue();
 
 
-// The default API object is imported to demonstrate
-// default module imports alongside named imports.
+
 void api;
