@@ -1,8 +1,20 @@
 
-const COURSES_URL = new URL("../data/courses.json", import.meta.url);
-const CATEGORIES_URL = new URL("../data/categories.json", import.meta.url);
+import { COURSE_LEVELS } from "./constants.js";
 
+const COURSES_URL = new URL(
+  "../data/courses.json",
+  import.meta.url
+);
 
+const CATEGORIES_URL = new URL(
+  "../data/categories.json",
+  import.meta.url
+);
+
+/**
+ * Fetch JSON with cancellation, timeout,
+ * and HTTP and JSON response validation.
+ */
 export async function fetchJson(
   url,
   {
@@ -16,12 +28,18 @@ export async function fetchJson(
   let timeoutId;
   let timedOut = false;
 
-  const forwardAbort = () => controller.abort(signal?.reason);
+  const forwardAbort = () => {
+    controller.abort(signal?.reason);
+  };
 
   if (signal?.aborted) {
     controller.abort(signal.reason);
   } else {
-    signal?.addEventListener("abort", forwardAbort, { once: true });
+    signal?.addEventListener(
+      "abort",
+      forwardAbort,
+      { once: true }
+    );
   }
 
   const timeoutPromise = new Promise((resolve, reject) => {
@@ -51,7 +69,6 @@ export async function fetchJson(
       timeoutPromise
     ]);
 
-    
     if (!response.ok) {
       throw new Error(
         `HTTP ${response.status}: ${
@@ -60,7 +77,6 @@ export async function fetchJson(
       );
     }
 
-    
     const contentType =
       response.headers.get("content-type") ?? "";
 
@@ -68,10 +84,11 @@ export async function fetchJson(
       contentType &&
       !contentType.toLowerCase().includes("application/json")
     ) {
-      throw new Error("The server response was not JSON.");
+      throw new Error(
+        "The server response was not JSON."
+      );
     }
 
-    
     try {
       return await response.json();
     } catch (error) {
@@ -85,7 +102,6 @@ export async function fetchJson(
     }
 
   } catch (error) {
-
     if (timedOut) {
       throw new Error(
         `The request timed out after ${timeoutMs} ms.`
@@ -105,10 +121,12 @@ export async function fetchJson(
     throw error;
 
   } finally {
-
     clearTimeout(timeoutId);
 
-    signal?.removeEventListener("abort", forwardAbort);
+    signal?.removeEventListener(
+      "abort",
+      forwardAbort
+    );
   }
 }
 
@@ -126,10 +144,10 @@ function toSafeNumber(value, fallback = 0) {
 
 
 /**
- * Validate and normalise course records.
+ * Validate course records and normalise
+ * missing or unexpected properties.
  */
 export function validateCourses(payload) {
-
   if (!Array.isArray(payload)) {
     throw new TypeError(
       "The courses data must be a JSON array."
@@ -137,8 +155,8 @@ export function validateCourses(payload) {
   }
 
   return payload
-    .map((record, index) => {
 
+    .map((record, index) => {
       if (
         !record ||
         typeof record !== "object" ||
@@ -147,22 +165,12 @@ export function validateCourses(payload) {
         return null;
       }
 
-      const {
-        id,
-        title,
-        instructor,
-        category,
-        ...otherFields
-      } = record;
-
-      const safeTitle =
-        typeof title === "string"
-          ? title.trim()
+      const title =
+        typeof record.title === "string"
+          ? record.title.trim()
           : "";
 
-      if (!safeTitle) {
-        return null;
-      }
+      if (!title) return null;
 
       const tags = Array.isArray(record.tags)
         ? record.tags
@@ -171,45 +179,49 @@ export function validateCourses(payload) {
         : [];
 
       return {
-        ...otherFields,
+        ...record,
 
-        id: String(id ?? `course-${index + 1}`),
+        id: String(
+          record.id ?? `course-${index + 1}`
+        ),
 
-        title: safeTitle,
+        title,
 
         instructor:
-          typeof instructor === "string" && instructor.trim()
-            ? instructor.trim()
+          typeof record.instructor === "string" &&
+          record.instructor.trim()
+            ? record.instructor.trim()
             : "Instructor TBA",
 
         category:
-          typeof category === "string" && category.trim()
-            ? category.trim()
+          typeof record.category === "string" &&
+          record.category.trim()
+            ? record.category.trim()
             : "General",
 
         difficulty:
-          typeof record.difficulty === "string"
+          COURSE_LEVELS.includes(record.difficulty)
             ? record.difficulty
-            : "All levels",
+            : "Unspecified",
 
         durationHours: Math.max(
           0,
-          toSafeNumber(record.durationHours, 0)
+          toSafeNumber(record.durationHours)
         ),
 
         rating: Math.min(
           5,
-          Math.max(0, toSafeNumber(record.rating, 0))
+          Math.max(0, toSafeNumber(record.rating))
         ),
 
         students: Math.max(
           0,
-          toSafeNumber(record.students, 0)
+          toSafeNumber(record.students)
         ),
 
         lessons: Math.max(
           0,
-          toSafeNumber(record.lessons, 0)
+          toSafeNumber(record.lessons)
         ),
 
         description:
@@ -234,7 +246,6 @@ export function validateCourses(payload) {
  * Validate category records.
  */
 export function validateCategories(payload) {
-
   if (!Array.isArray(payload)) {
     throw new TypeError(
       "The categories data must be a JSON array."
@@ -243,12 +254,11 @@ export function validateCategories(payload) {
 
   return payload
 
-    .filter(
-      (category) =>
-        category &&
-        typeof category === "object" &&
-        !Array.isArray(category)
-    )
+    .filter((category) => (
+      category &&
+      typeof category === "object" &&
+      !Array.isArray(category)
+    ))
 
     .map((category) => ({
       id: String(category.id ?? ""),
@@ -266,33 +276,29 @@ export function validateCategories(payload) {
 
 
 /**
- * Load two independent JSON files together.
- * Promise.all waits for both requests.
+ * Load courses and categories concurrently.
  */
 export async function loadInitialData({ signal } = {}) {
-
   const [
     coursePayload,
     categoryPayload
   ] = await Promise.all([
-
     fetchJson(COURSES_URL, { signal }),
-
     fetchJson(CATEGORIES_URL, { signal })
-
   ]);
 
   return {
     courses: validateCourses(coursePayload),
-
     categories: validateCategories(categoryPayload)
   };
 }
 
 
-
+/**
+ * Fetch fresh course data for the cancellable
+ * search request.
+ */
 export async function fetchCourses({ signal } = {}) {
-
   const payload = await fetchJson(
     COURSES_URL,
     { signal }
@@ -300,15 +306,3 @@ export async function fetchCourses({ signal } = {}) {
 
   return validateCourses(payload);
 }
-
-
-
-const api = {
-  fetchJson,
-  fetchCourses,
-  loadInitialData,
-  validateCourses,
-  validateCategories
-};
-
-export default api;

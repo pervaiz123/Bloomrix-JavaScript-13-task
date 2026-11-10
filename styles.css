@@ -470,6 +470,10 @@ h2 {
     gap: 17px;
 }
 
+.course-grid[hidden] {
+    display: none;
+}
+
 .course-card {
     min-width: 0;
     overflow: hidden;

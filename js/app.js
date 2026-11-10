@@ -1,10 +1,27 @@
 
-import api, {
+import {
   fetchCourses,
   loadInitialData
 } from "./api.js";
 
-import ui from "./ui.js";
+import {
+  DEFAULT_FILTERS,
+  FILTER_QUERY_PARAM_NAMES,
+  normalizeFilters
+} from "./constants.js";
+
+import {
+  getElements,
+  initializeStaticFilters,
+  renderCategories,
+  renderCourses,
+  renderStats,
+  setControlsEnabled,
+  setFilterValues,
+  showEmpty,
+  showError,
+  showLoading
+} from "./ui.js";
 
 import {
   debounce,
@@ -17,405 +34,255 @@ import {
 } from "./utils.js";
 
 
-// Default application filters.
-const DEFAULT_FILTERS = {
+// URL filters take priority over saved preferences.
+const urlParams = new URLSearchParams(
+  window.location.search
+);
 
-  search: "",
+const hasUrlFilters = FILTER_QUERY_PARAM_NAMES.some(
+  (key) => urlParams.has(key)
+);
 
-  category: "all",
-
-  level: "all",
-
-  sort: "popular"
-
-};
-
-
-// Read filter values from the URL.
-const urlFilters = readFiltersFromUrl();
+const storedFilters = hasUrlFilters
+  ? readFiltersFromUrl()
+  : readSavedFilters();
 
 
-// Read previously saved filter values.
-const savedFilters = readSavedFilters();
-
-
-// Check whether URL parameters are available.
-const currentParams =
-  new URLSearchParams(window.location.search);
-
-const hasUrlFilters = [
-  "q",
-  "category",
-  "level",
-  "sort"
-].some((key) => currentParams.has(key));
-
-
-// URL filters take priority over saved filters.
-const initialFilters = hasUrlFilters
-
-  ? {
-      ...DEFAULT_FILTERS,
-      ...urlFilters
-    }
-
-  : {
-      ...DEFAULT_FILTERS,
-      ...savedFilters
-    };
-
-
-// Main application state.
+// Application state.
 const state = {
-
   allCourses: [],
-
   categories: [],
-
-  filters: initialFilters,
-
-  searchController: null,
-
-  loaded: false
-
+  filters: {
+    ...DEFAULT_FILTERS,
+    ...storedFilters
+  },
+  searchController: null
 };
 
-
-// Get DOM elements from the UI module.
-const elements = ui.getElements();
+const elements = getElements();
 
 
 /**
- * Filter, group, and display the current courses.
+ * Save the current filters to the URL
+ * and browser localStorage.
+ */
+function persistFilters() {
+  updateUrl(state.filters);
+  saveFilters(state.filters);
+}
+
+
+/**
+ * Filter, group, and render current course data.
  */
 function renderCurrentResults() {
+  // Validate filters BEFORE filtering the courses.
+  state.filters = normalizeFilters(
+    state.filters,
+    state.categories
+  );
+
+  const groupedCourses = groupCoursesByCategory(
+    state.allCourses
+  );
 
   const matchingCourses = filterAndSortCourses(
     state.allCourses,
     state.filters
   );
 
-
-  const categoryExists =
-    state.filters.category === "all"
-
-    || state.categories.find(
-      (category) =>
-        category.name === state.filters.category
-    );
-
-
-  // Reset invalid category values.
-  if (!categoryExists) {
-    state.filters.category = "all";
-  }
-
-
-  // Render categories and statistics.
-  ui.renderCategories(
+  renderCategories(
     state.categories,
-    state.allCourses,
+    groupedCourses,
     state.filters.category
   );
 
-  ui.renderStats(
+  renderStats(
     state.allCourses,
     state.categories
   );
 
-
-  // Group courses by category.
-  const groupedCourses =
-    groupCoursesByCategory(matchingCourses);
-
-  console.info(
-    "Course groups:",
-    Object.keys(groupedCourses)
-  );
-
-
-  // Display the empty state if no courses match.
   if (matchingCourses.length === 0) {
-
-    ui.showEmpty(state.filters.search);
-
+    showEmpty(state.filters.search);
     return;
   }
 
-
-  // Otherwise render matching course cards.
-  ui.renderCourses(matchingCourses);
+  renderCourses(matchingCourses);
 }
 
 
 /**
- * Update the URL and save filter preferences.
- */
-function persistFilters() {
-
-  updateUrl(state.filters);
-
-  saveFilters(state.filters);
-
-}
-
-
-/**
- * Load the initial course catalogue.
+ * Load courses and categories when the application starts.
  */
 async function loadCatalogue() {
+  debouncedSearchRequest.cancel();
 
   state.searchController?.abort();
 
-  ui.setControlsEnabled(false);
+  state.searchController = null;
 
-  ui.showLoading(
+  setControlsEnabled(false);
+
+  showLoading(
     "Fetching courses and categories together…"
   );
 
-
   try {
-
-    // Load courses and categories concurrently.
+    // Both independent JSON files load concurrently.
     const {
       courses,
       categories
     } = await loadInitialData();
 
-
     state.allCourses = courses;
-
     state.categories = categories;
 
-    state.loaded = true;
-
-
-    // Validate category filter.
-    const validCategory = categories.find(
-      (category) =>
-        category.name === state.filters.category
+    // Validate URL and saved filters against loaded data.
+    state.filters = normalizeFilters(
+      state.filters,
+      categories
     );
 
-    if (
-      state.filters.category !== "all"
-      && !validCategory
-    ) {
-      state.filters.category = "all";
-    }
+    initializeStaticFilters();
 
+    setControlsEnabled(true);
 
-    // Validate difficulty level.
-    if (
-      ![
-        "all",
-        "Beginner",
-        "Intermediate",
-        "Advanced"
-      ].includes(state.filters.level)
-    ) {
-      state.filters.level = "all";
-    }
+    setFilterValues(state.filters);
 
-
-    // Validate sorting option.
-    if (
-      ![
-        "popular",
-        "rating",
-        "title",
-        "duration"
-      ].includes(state.filters.sort)
-    ) {
-      state.filters.sort = "popular";
-    }
-
-
-    // Make sure the search value is a string.
-    state.filters.search =
-      typeof state.filters.search === "string"
-        ? state.filters.search
-        : "";
-
-
-    // Enable the form after loading.
-    ui.setControlsEnabled(true);
-
-
-    // Restore filter selections.
-    ui.setFilterValues(state.filters);
-
-
-    // Save the final valid filter values.
     persistFilters();
 
-
-    // Render the application.
     renderCurrentResults();
 
   } catch (error) {
-
-    console.error(
-      "Catalogue loading failed:",
-      error
-    );
-
-    ui.showError(
+    showError(
       error.message ||
       "An unexpected error occurred while loading courses."
     );
 
-    ui.setControlsEnabled(false);
-
+    setControlsEnabled(false);
   }
-
 }
 
 
 /**
- * Fetch fresh course data for a search request.
- * AbortController cancels an older request when necessary.
+ * Fetch fresh course data for a searchable request.
+ *
+ * AbortController cancels the previous request when
+ * a new search begins.
  */
 async function refreshCoursesForSearch() {
-
   const controller = new AbortController();
 
   state.searchController = controller;
 
-  ui.showLoading(
+  showLoading(
     "Refreshing course data for your search…"
   );
 
-
   try {
-
     const freshCourses = await fetchCourses({
       signal: controller.signal
     });
 
-
-    // Do not render results from a cancelled request.
-    if (controller.signal.aborted) {
-      return;
-    }
-
+    // Prevent cancelled requests from rendering old results.
+    if (controller.signal.aborted) return;
 
     state.allCourses = freshCourses;
 
     renderCurrentResults();
 
   } catch (error) {
+    if (error?.name === "AbortError") return;
 
-    // Ignore cancellation errors.
-    if (error?.name === "AbortError") {
-      return;
-    }
-
-
-    console.error(
-      "Search request failed:",
-      error
-    );
-
-    ui.showError(
+    showError(
       error.message ||
       "The search request could not be completed."
     );
 
   } finally {
-
     if (state.searchController === controller) {
       state.searchController = null;
     }
-
   }
-
 }
 
 
-// Debounce the search request by 350 milliseconds.
-const debouncedSearchRequest =
-  debounce(refreshCoursesForSearch, 350);
+// Wait until the user pauses typing.
+const debouncedSearchRequest = debounce(
+  refreshCoursesForSearch,
+  350
+);
 
 
 /**
- * Search input event handler.
+ * Handle course search input.
  */
 function handleSearchInput(event) {
-
-  state.filters.search =
-    event.currentTarget.value;
+  state.filters.search = event.currentTarget.value;
 
   persistFilters();
 
-
-  // Cancel an older active search request.
   state.searchController?.abort();
 
-
-  // Start the debounced request.
   debouncedSearchRequest();
-
 }
 
 
 /**
- * Category, level, and sorting event handler.
+ * Handle category, level, and sorting changes.
  */
 function handleSelectChange(key, event) {
+  state.filters[key] = event.currentTarget.value;
 
-  state.filters[key] =
-    event.currentTarget.value;
+  state.filters = normalizeFilters(
+    state.filters,
+    state.categories
+  );
+
+  setFilterValues(state.filters);
 
   persistFilters();
 
   renderCurrentResults();
-
 }
 
 
 /**
- * Reset all filters.
+ * Reset search, category, level, and sorting.
  */
 function resetFilters() {
-
-  // Cancel pending and active requests.
   debouncedSearchRequest.cancel();
 
   state.searchController?.abort();
 
+  state.searchController = null;
 
-  // Restore default filter values.
   state.filters = {
     ...DEFAULT_FILTERS
   };
 
-
-  ui.setFilterValues(state.filters);
+  setFilterValues(state.filters);
 
   persistFilters();
 
   renderCurrentResults();
-
 }
 
 
 /**
- * Register all browser events.
+ * Register application event listeners.
  */
 function attachEvents() {
-
   document
     .querySelector("#filtersForm")
     .addEventListener("submit", (event) => {
       event.preventDefault();
     });
 
-
   elements.searchInput.addEventListener(
     "input",
     handleSearchInput
   );
-
 
   elements.categorySelect.addEventListener(
     "change",
@@ -424,14 +291,12 @@ function attachEvents() {
     }
   );
 
-
   elements.levelSelect.addEventListener(
     "change",
     (event) => {
       handleSelectChange("level", event);
     }
   );
-
 
   elements.sortSelect.addEventListener(
     "change",
@@ -440,38 +305,28 @@ function attachEvents() {
     }
   );
 
-
   elements.clearFiltersButton.addEventListener(
     "click",
     resetFilters
   );
-
 
   elements.emptyResetButton.addEventListener(
     "click",
     resetFilters
   );
 
-
   elements.retryButton.addEventListener(
     "click",
     loadCatalogue
   );
-
 }
 
 
-// Register event listeners.
+// Initialise the application.
+initializeStaticFilters();
+
 attachEvents();
 
+setFilterValues(state.filters);
 
-// Restore initial form values.
-ui.setFilterValues(state.filters);
-
-
-// Start loading the application.
 loadCatalogue();
-
-
-
-void api;

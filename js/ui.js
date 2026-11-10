@@ -1,96 +1,41 @@
 
+import {
+  ALL_FILTER_VALUE,
+  DEFAULT_FILTERS,
+  LEVEL_OPTIONS,
+  SORT_OPTIONS
+} from "./constants.js";
+
 const elements = {
-
   searchInput: document.querySelector("#searchInput"),
-
   categorySelect: document.querySelector("#categorySelect"),
-
   levelSelect: document.querySelector("#levelSelect"),
-
   sortSelect: document.querySelector("#sortSelect"),
-
-  clearFiltersButton:
-    document.querySelector("#clearFiltersButton"),
-
-  retryButton:
-    document.querySelector("#retryButton"),
-
-  emptyResetButton:
-    document.querySelector("#emptyResetButton"),
-
-  loadingState:
-    document.querySelector("#loadingState"),
-
-  errorState:
-    document.querySelector("#errorState"),
-
-  errorMessage:
-    document.querySelector("#errorMessage"),
-
-  emptyState:
-    document.querySelector("#emptyState"),
-
-  emptyMessage:
-    document.querySelector("#emptyMessage"),
-
-  courseGrid:
-    document.querySelector("#courseGrid"),
-
-  resultsCount:
-    document.querySelector("#resultsCount"),
-
-  categorySummary:
-    document.querySelector("#categorySummary"),
-
-  statCourses:
-    document.querySelector("#statCourses"),
-
-  statHours:
-    document.querySelector("#statHours"),
-
-  statRating:
-    document.querySelector("#statRating"),
-
-  statCategories:
-    document.querySelector("#statCategories")
+  clearFiltersButton: document.querySelector("#clearFiltersButton"),
+  retryButton: document.querySelector("#retryButton"),
+  emptyResetButton: document.querySelector("#emptyResetButton"),
+  loadingState: document.querySelector("#loadingState"),
+  errorState: document.querySelector("#errorState"),
+  errorMessage: document.querySelector("#errorMessage"),
+  emptyState: document.querySelector("#emptyState"),
+  emptyMessage: document.querySelector("#emptyMessage"),
+  courseGrid: document.querySelector("#courseGrid"),
+  resultsCount: document.querySelector("#resultsCount"),
+  categorySummary: document.querySelector("#categorySummary"),
+  statCourses: document.querySelector("#statCourses"),
+  statHours: document.querySelector("#statHours"),
+  statRating: document.querySelector("#statRating"),
+  statCategories: document.querySelector("#statCategories")
 };
 
-
-// Different visual themes for course categories.
 const artThemes = {
-
-  "Web Development": [
-    "#176a63",
-    "#234b72",
-    "JS"
-  ],
-
-  "Web Design": [
-    "#704a9a",
-    "#315d87",
-    "UI"
-  ],
-
-  "Data Science": [
-    "#895a2e",
-    "#5b477f",
-    "DS"
-  ],
-
-  "Software Engineering": [
-    "#285d8c",
-    "#344779",
-    "SE"
-  ]
+  "Web Development": ["#176a63", "#234b72", "JS"],
+  "Web Design": ["#704a9a", "#315d87", "UI"],
+  "Data Science": ["#895a2e", "#5b477f", "DS"],
+  "Software Engineering": ["#285d8c", "#344779", "SE"]
 };
 
-
-/**
- * Create an HTML element safely.
- * textContent is used instead of inserting HTML strings.
- */
-function createElement(tagName, className, text) {
-
+function createElement(tagName, className = "", text = undefined) {
   const element = document.createElement(tagName);
 
   if (className) {
@@ -104,145 +49,65 @@ function createElement(tagName, className, text) {
   return element;
 }
 
+function createOption(label, value) {
+  const option = document.createElement("option");
+
+  option.value = value;
+  option.textContent = label;
+
+  return option;
+}
+
 
 /**
- * Create one course card dynamically.
+ * Create a course card using DOM elements.
+ * textContent prevents incoming data from being treated as HTML.
  */
 function createCourseCard(course) {
+  const theme = Object.hasOwn(artThemes, course.category)
+    ? artThemes[course.category]
+    : ["#315b68", "#35466f", "LEARN"];
 
-  const [
-    startColor,
-    endColor,
-    mark
-  ] = artThemes[course.category] ?? [
-    "#315b68",
-    "#35466f",
-    "LEARN"
-  ];
+  const [startColor, endColor, mark] = theme;
 
-  const card = createElement(
-    "article",
-    "course-card"
-  );
-
-  const art = createElement(
-    "div",
-    "course-art"
-  );
+  const card = createElement("article", "course-card");
+  const art = createElement("div", "course-art");
 
   art.style.setProperty("--art-a", startColor);
   art.style.setProperty("--art-b", endColor);
 
   art.append(
-    createElement(
-      "span",
-      "course-art-mark",
-      mark
-    )
+    createElement("span", "course-art-mark", mark),
+    createElement("span", "level-pill", course.difficulty)
   );
 
-  art.append(
-    createElement(
-      "span",
-      "level-pill",
-      course.difficulty
-    )
-  );
-
-  const content = createElement(
-    "div",
-    "course-content"
-  );
+  const content = createElement("div", "course-content");
 
   content.append(
-    createElement(
-      "p",
-      "course-category",
-      course.category
-    )
+    createElement("p", "course-category", course.category),
+    createElement("h3", "course-title", course.title),
+    createElement("p", "course-description", course.description),
+    createElement("p", "course-instructor", `By ${course.instructor}`)
   );
 
-  content.append(
-    createElement(
-      "h3",
-      "course-title",
-      course.title
-    )
-  );
-
-  content.append(
-    createElement(
-      "p",
-      "course-description",
-      course.description
-    )
-  );
-
-  content.append(
-    createElement(
-      "p",
-      "course-instructor",
-      `By ${course.instructor}`
-    )
-  );
-
-  // Course information.
-  const meta = createElement(
-    "div",
-    "course-meta"
-  );
-
-  const rating = createElement(
-    "span",
-    "rating",
-    `★ ${course.rating.toFixed(1)}`
-  );
-
-  const duration = createElement(
-    "span",
-    "",
-    `◷ ${course.durationHours} hours`
-  );
-
-  const lessons = createElement(
-    "span",
-    "",
-    `▤ ${course.lessons} lessons`
-  );
-
-  const students = createElement(
-    "span",
-    "",
-    `${course.students.toLocaleString()} learners`
-  );
+  const meta = createElement("div", "course-meta");
 
   meta.append(
-    rating,
-    duration,
-    lessons,
-    students
+    createElement("span", "rating", `★ ${course.rating.toFixed(1)}`),
+    createElement("span", "", `◷ ${course.durationHours} hours`),
+    createElement("span", "", `▤ ${course.lessons} lessons`),
+    createElement("span", "", `${course.students.toLocaleString()} learners`)
   );
 
   content.append(meta);
 
-  // Render tags when available.
-  if (course.tags?.length) {
-
-    const tagContainer = createElement(
-      "div",
-      "course-tags"
-    );
+  if (course.tags.length) {
+    const tagContainer = createElement("div", "course-tags");
 
     course.tags.forEach((tag) => {
-
       tagContainer.append(
-        createElement(
-          "span",
-          "course-tag",
-          tag
-        )
+        createElement("span", "course-tag", tag)
       );
-
     });
 
     content.append(tagContainer);
@@ -255,10 +120,9 @@ function createCourseCard(course) {
 
 
 /**
- * Show only the requested application state.
+ * Display only the requested application state.
  */
 function showOnlyState(stateToShow) {
-
   elements.loadingState.hidden =
     stateToShow !== "loading";
 
@@ -279,16 +143,29 @@ function showOnlyState(stateToShow) {
 
 
 /**
+ * Generate level and sorting dropdown options
+ * using the shared constants.
+ */
+export function initializeStaticFilters() {
+  elements.levelSelect.replaceChildren(
+    ...LEVEL_OPTIONS.map(({ label, value }) =>
+      createOption(label, value)
+    )
+  );
+
+  elements.sortSelect.replaceChildren(
+    ...SORT_OPTIONS.map(({ label, value }) =>
+      createOption(label, value)
+    )
+  );
+}
+
+
+/**
  * Loading state.
  */
-export function showLoading(
-  message = "Fetching course data…"
-) {
-
-  const paragraph =
-    elements.loadingState.querySelector("p");
-
-  paragraph.textContent = message;
+export function showLoading(message = "Fetching course data…") {
+  elements.loadingState.querySelector("p").textContent = message;
 
   elements.courseGrid.replaceChildren();
 
@@ -302,7 +179,6 @@ export function showLoading(
  * Error state.
  */
 export function showError(message) {
-
   elements.errorMessage.textContent =
     message || "Please try again.";
 
@@ -319,7 +195,6 @@ export function showError(message) {
  * Empty state.
  */
 export function showEmpty(search = "") {
-
   elements.emptyMessage.textContent = search
 
     ? `No courses matched “${search}”. Try a different keyword or clear your filters.`
@@ -335,23 +210,18 @@ export function showEmpty(search = "") {
 
 
 /**
- * Render course cards into the page.
+ * Render the matching course cards.
  */
 export function renderCourses(courses) {
-
-  const courseCards = courses.map(
+  const cards = courses.map(
     (course) => createCourseCard(course)
   );
 
-  elements.courseGrid.replaceChildren(
-    ...courseCards
-  );
+  elements.courseGrid.replaceChildren(...cards);
 
   elements.resultsCount.textContent =
     `${courses.length} ${
-      courses.length === 1
-        ? "course"
-        : "courses"
+      courses.length === 1 ? "course" : "courses"
     } found`;
 
   showOnlyState("courses");
@@ -359,20 +229,13 @@ export function renderCourses(courses) {
 
 
 /**
- * Calculate and display overall catalogue statistics.
- * reduce() is used to calculate the totals.
+ * Calculate and display catalogue statistics.
  */
 export function renderStats(courses, categories) {
-
   const totals = courses.reduce(
     (summary, course) => ({
-
-      hours:
-        summary.hours + course.durationHours,
-
-      rating:
-        summary.rating + course.rating
-
+      hours: summary.hours + course.durationHours,
+      rating: summary.rating + course.rating
     }),
 
     {
@@ -388,7 +251,7 @@ export function renderStats(courses, categories) {
     : "—";
 
   elements.statCourses.textContent =
-    courses.length.toString();
+    String(courses.length);
 
   elements.statHours.textContent =
     `${totals.hours}h`;
@@ -397,96 +260,62 @@ export function renderStats(courses, categories) {
     averageRating;
 
   elements.statCategories.textContent =
-    categories.length.toString();
+    String(categories.length);
 }
 
 
 /**
- * Render category filter options and category counts.
+ * Render category dropdown options and category counts.
+ * groupedCourses is calculated in utils.js and actually
+ * used here rather than being sent to the console.
  */
 export function renderCategories(
   categories,
-  courses,
-  selectedCategory = "all"
+  groupedCourses,
+  selectedCategory = ALL_FILTER_VALUE
 ) {
+  const options = [
+    createOption("All categories", ALL_FILTER_VALUE),
 
-  const currentValue = categories.find(
+    ...categories.map(({ name }) =>
+      createOption(name, name)
+    )
+  ];
+
+  elements.categorySelect.replaceChildren(...options);
+
+  const validSelection = categories.find(
     (category) => category.name === selectedCategory
-  )?.name;
-
-  elements.categorySelect.replaceChildren(
-    new Option("All categories", "all")
   );
-
-  categories.forEach((category) => {
-
-    const option = new Option(
-      category.name,
-      category.name
-    );
-
-    elements.categorySelect.append(option);
-
-  });
 
   elements.categorySelect.value =
-    currentValue ?? "all";
+    validSelection?.name ?? ALL_FILTER_VALUE;
 
-  // Group courses by category using reduce().
-  const grouped = courses.reduce(
-    (summary, course) => {
-
-      const category =
-        course.category ?? "Uncategorised";
-
-      summary[category] =
-        (summary[category] ?? 0) + 1;
-
-      return summary;
-    },
-
-    {}
-  );
-
-  const chips = Object.entries(grouped).map(
-    ([name, count]) => {
-
-      return createElement(
+  const chips = Object.entries(groupedCourses).map(
+    ([name, courses]) =>
+      createElement(
         "span",
         "category-chip",
-        `${name} · ${count}`
-      );
-
-    }
+        `${name} · ${courses.length}`
+      )
   );
 
-  elements.categorySummary.replaceChildren(
-    ...chips
-  );
+  elements.categorySummary.replaceChildren(...chips);
 }
 
 
 /**
- * Enable or disable form controls.
+ * Enable or disable filter controls.
  */
 export function setControlsEnabled(enabled) {
-
   [
-
     elements.searchInput,
-
     elements.categorySelect,
-
     elements.levelSelect,
-
     elements.sortSelect,
-
     elements.clearFiltersButton
-
   ].forEach((control) => {
-
     control.disabled = !enabled;
-
   });
 }
 
@@ -495,52 +324,23 @@ export function setControlsEnabled(enabled) {
  * Restore filter values in the form.
  */
 export function setFilterValues(filters) {
-
   elements.searchInput.value =
-    filters.search ?? "";
+    filters.search ?? DEFAULT_FILTERS.search;
 
   elements.categorySelect.value =
-    filters.category ?? "all";
+    filters.category ?? ALL_FILTER_VALUE;
 
   elements.levelSelect.value =
-    filters.level ?? "all";
+    filters.level ?? ALL_FILTER_VALUE;
 
   elements.sortSelect.value =
-    filters.sort ?? "popular";
+    filters.sort ?? DEFAULT_FILTERS.sort;
 }
 
 
 /**
- * Give the application access to DOM elements.
+ * Give app.js access to the required DOM elements.
  */
 export function getElements() {
-
   return elements;
-
 }
-
-
-// Default export.
-const ui = {
-
-  showLoading,
-
-  showError,
-
-  showEmpty,
-
-  renderCourses,
-
-  renderStats,
-
-  renderCategories,
-
-  setControlsEnabled,
-
-  setFilterValues,
-
-  getElements
-
-};
-
-export default ui;

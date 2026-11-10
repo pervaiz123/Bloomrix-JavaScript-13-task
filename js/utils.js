@@ -1,149 +1,106 @@
 
+import {
+  ALL_FILTER_VALUE,
+  DEFAULT_FILTERS,
+  FILTER_QUERY_KEYS,
+  SORT_BY
+} from "./constants.js";
+
 const FILTER_STORAGE_KEY =
   "skillpath-course-filters";
 
 
 /**
- * Debounce function.
+ * Debouncing waits until the user stops
+ * triggering an event for the specified delay.
  *
- * It delays callback execution until the user
- * stops performing an action for the given time.
- *
- * The timeoutId variable is retained in a closure.
+ * timeoutId is retained through a closure.
  */
-export function debounce(
-  callback,
-  delay = 300
-) {
-
+export function debounce(callback, delay = 300) {
   let timeoutId;
 
   const debounced = (...args) => {
-
     clearTimeout(timeoutId);
 
     timeoutId = setTimeout(
       () => callback(...args),
       delay
     );
-
   };
 
-
-  // Cancel a pending debounced callback.
   debounced.cancel = () => {
     clearTimeout(timeoutId);
   };
 
-
   return debounced;
-
 }
 
 
 /**
- * Throttle function.
- *
- * It allows the callback to execute
- * at most once during a time window.
- */
-export function throttle(
-  callback,
-  delay = 200
-) {
-
-  let waiting = false;
-
-  return (...args) => {
-
-    if (waiting) {
-      return;
-    }
-
-    callback(...args);
-
-    waiting = true;
-
-    setTimeout(() => {
-
-      waiting = false;
-
-    }, delay);
-
-  };
-
-}
-
-
-/**
- * Read filters from the browser URL.
- *
- * URLSearchParams reads query parameters.
+ * Read current filter values from URL parameters.
  */
 export function readFiltersFromUrl() {
-
   const params = new URLSearchParams(
     window.location.search
   );
 
   return {
+    search:
+      params.get(FILTER_QUERY_KEYS.SEARCH) ??
+      DEFAULT_FILTERS.search,
 
-    search: params.get("q") ?? "",
+    category:
+      params.get(FILTER_QUERY_KEYS.CATEGORY) ??
+      ALL_FILTER_VALUE,
 
-    category: params.get("category") ?? "all",
+    level:
+      params.get(FILTER_QUERY_KEYS.LEVEL) ??
+      ALL_FILTER_VALUE,
 
-    level: params.get("level") ?? "all",
-
-    sort: params.get("sort") ?? "popular"
-
+    sort:
+      params.get(FILTER_QUERY_KEYS.SORT) ??
+      DEFAULT_FILTERS.sort
   };
-
 }
 
 
 /**
- * Update URL query parameters when filters change.
+ * Update URL parameters without reloading the page.
  */
-export function updateUrl(filters = {}) {
-
+export function updateUrl(filters = DEFAULT_FILTERS) {
   const params = new URLSearchParams(
     window.location.search
   );
 
-
-  // Destructure filter properties with defaults.
   const values = {
+    [FILTER_QUERY_KEYS.SEARCH]:
+      filters.search?.trim() ?? DEFAULT_FILTERS.search,
 
-    q: filters.search?.trim() ?? "",
+    [FILTER_QUERY_KEYS.CATEGORY]:
+      filters.category ?? ALL_FILTER_VALUE,
 
-    category: filters.category ?? "all",
+    [FILTER_QUERY_KEYS.LEVEL]:
+      filters.level ?? ALL_FILTER_VALUE,
 
-    level: filters.level ?? "all",
-
-    sort: filters.sort ?? "popular"
-
+    [FILTER_QUERY_KEYS.SORT]:
+      filters.sort ?? DEFAULT_FILTERS.sort
   };
 
-
-  // Update or remove query parameters.
   for (const [key, value] of Object.entries(values)) {
+    const isDefault =
+      !value ||
+      value === ALL_FILTER_VALUE ||
+      (
+        key === FILTER_QUERY_KEYS.SORT &&
+        value === DEFAULT_FILTERS.sort
+      );
 
-    if (
-      value &&
-      value !== "all" &&
-      value !== "popular"
-    ) {
-
-      params.set(key, value);
-
-    } else {
-
+    if (isDefault) {
       params.delete(key);
-
+    } else {
+      params.set(key, value);
     }
-
   }
-
 
   const query = params.toString();
 
@@ -152,223 +109,147 @@ export function updateUrl(filters = {}) {
     `${query ? `?${query}` : ""}` +
     `${window.location.hash}`;
 
-
-  // Update URL without reloading the page.
   window.history.replaceState(
     {},
     "",
     nextUrl
   );
-
 }
 
 
 /**
- * Save filters to localStorage.
- *
- * JSON.stringify converts JavaScript data into JSON text.
+ * Save filters in browser localStorage.
  */
 export function saveFilters(filters) {
-
   try {
-
     window.localStorage.setItem(
       FILTER_STORAGE_KEY,
       JSON.stringify(filters)
     );
-
-  } catch (error) {
-
-    console.warn(
-      "Could not save course filters:",
-      error
-    );
-
+  } catch {
+    // The application still works when storage is unavailable.
   }
-
 }
 
 
 /**
  * Restore saved filters from localStorage.
- *
- * JSON.parse converts JSON text into JavaScript data.
  */
 export function readSavedFilters() {
-
   try {
-
     const storedValue =
       window.localStorage.getItem(
         FILTER_STORAGE_KEY
       );
 
+    if (!storedValue) return {};
 
-    if (!storedValue) {
-      return {};
-    }
-
-
-    const parsedValue =
-      JSON.parse(storedValue);
-
+    const parsedValue = JSON.parse(storedValue);
 
     return (
       parsedValue &&
       typeof parsedValue === "object" &&
       !Array.isArray(parsedValue)
     )
-
       ? parsedValue
-
       : {};
 
-  } catch (error) {
-
-    console.warn(
-      "Saved course filters were not valid JSON:",
-      error
-    );
-
+  } catch {
     return {};
-
   }
-
 }
 
 
 /**
  * Group courses by category using reduce().
+ * The UI uses these groups to display category counts.
  */
-export function groupCoursesByCategory(
-  courses = []
-) {
+export function groupCoursesByCategory(courses = []) {
+  return courses.reduce((groups, course) => {
+    const category =
+      course.category ?? "Uncategorised";
 
-  return courses.reduce(
-    (groups, course) => {
+    groups[category] ??= [];
 
-      const categoryName =
-        course.category ?? "Uncategorised";
+    groups[category].push(course);
 
+    return groups;
 
-      // Create an array if the category does not exist.
-      groups[categoryName] ??= [];
-
-
-      // Add this course to its category.
-      groups[categoryName].push(course);
-
-      return groups;
-
-    },
-
-    {}
-  );
-
+  }, Object.create(null));
 }
 
 
 /**
- * Search, filter, and sort the loaded courses.
+ * Search, filter, and sort course records.
  */
 export function filterAndSortCourses(
   courses = [],
-  filters = {}
+  filters = DEFAULT_FILTERS
 ) {
-
   const searchTerm =
     (filters.search ?? "").trim().toLowerCase();
 
   const selectedCategory =
-    filters.category ?? "all";
+    filters.category ?? ALL_FILTER_VALUE;
 
   const selectedLevel =
-    filters.level ?? "all";
+    filters.level ?? ALL_FILTER_VALUE;
 
   const sortBy =
-    filters.sort ?? "popular";
+    filters.sort ?? DEFAULT_FILTERS.sort;
 
 
-  // FILTER: Find courses matching all selected conditions.
-  const matchingCourses = courses.filter(
-    (course) => {
+  // Filter courses against the selected conditions.
+  const matchingCourses = courses.filter((course) => {
+    const searchableFields = [
+      course.title,
+      course.instructor,
+      course.category
+    ];
 
-      const searchableFields = [
+    const matchesSearch =
+      !searchTerm ||
 
-        course.title,
+      searchableFields.some(
+        (value) => value.toLowerCase().includes(searchTerm)
+      ) ||
 
-        course.instructor,
-
-        course.category
-
-      ];
-
-
-      // SEARCH: Look inside title, instructor, category, and tags.
-      const matchesSearch =
-        !searchTerm
-
-        || searchableFields.some(
-          (value) =>
-            value.toLowerCase().includes(searchTerm)
-        )
-
-        || course.tags?.some(
-          (tag) =>
-            tag.toLowerCase().includes(searchTerm)
-        );
-
-
-      const matchesCategory =
-        selectedCategory === "all" ||
-        course.category === selectedCategory;
-
-
-      const matchesLevel =
-        selectedLevel === "all" ||
-        course.difficulty === selectedLevel;
-
-
-      return (
-        matchesSearch &&
-        matchesCategory &&
-        matchesLevel
+      course.tags?.some(
+        (tag) => tag.toLowerCase().includes(searchTerm)
       );
 
-    }
-  );
+    const matchesCategory =
+      selectedCategory === ALL_FILTER_VALUE ||
+      course.category === selectedCategory;
+
+    const matchesLevel =
+      selectedLevel === ALL_FILTER_VALUE ||
+      course.difficulty === selectedLevel;
+
+    return (
+      matchesSearch &&
+      matchesCategory &&
+      matchesLevel
+    );
+  });
 
 
-  // Create a copy so the original data is not modified.
-  const sortedCourses = [
-    ...matchingCourses
-  ];
-
-
-  // SORT: Choose the correct comparison function.
+  // Keep the original course array unchanged.
   const comparators = {
+    [SORT_BY.RATING]: (a, b) => b.rating - a.rating,
 
-    rating: (a, b) =>
-      b.rating - a.rating,
-
-    title: (a, b) =>
+    [SORT_BY.TITLE]: (a, b) =>
       a.title.localeCompare(b.title),
 
-    duration: (a, b) =>
+    [SORT_BY.DURATION]: (a, b) =>
       a.durationHours - b.durationHours,
 
-    popular: (a, b) =>
+    [SORT_BY.POPULAR]: (a, b) =>
       b.students - a.students
-
   };
 
-
-  sortedCourses.sort(
+  return [...matchingCourses].sort(
     comparators[sortBy] ??
-    comparators.popular
+    comparators[DEFAULT_FILTERS.sort]
   );
-
-
-  return sortedCourses;
-
 }
