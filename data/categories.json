@@ -1,0 +1,19 @@
+
+[
+  {
+    "id": "web-development",
+    "name": "Web Development"
+  },
+  {
+    "id": "web-design",
+    "name": "Web Design"
+  },
+  {
+    "id": "data-science",
+    "name": "Data Science"
+  },
+  {
+    "id": "software-engineering",
+    "name": "Software Engineering"
+  }
+]
